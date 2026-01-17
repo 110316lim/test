@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Tetris</title>
+<style>
+  body {
+    background: white;
+    color: black;
+    text-align: center;
+    font-family: Arial, sans-serif;
+  }
+  canvas {
+    background: white;
+    margin-top: 10px;
+    border: 2px solid black;
+  }
+  #score {
+    font-size: 20px;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+
+<h1>🎮 TETRIS</h1>
+<div id="score">점수: 0</div>
+<p>⬅ ➡ 이동 | ⬆ 회전 | ⬇ 빠르게 | SPACE 드롭</p>
+<canvas id="tetris" width="240" height="400"></canvas>
+
+<script>
+const canvas = document.getElementById('tetris');
+const ctx = canvas.getContext('2d');
+ctx.scale(20, 20);
+
+const scoreEl = document.getElementById('score');
+
+const ROWS = 20;
+const COLS = 12;
+
+const pieces = {
+  T: [[0,1,0],[1,1,1]],
+  O: [[2,2],[2,2]],
+  L: [[0,0,3],[3,3,3]],
+  J: [[4,0,0],[4,4,4]],
+  I: [[5,5,5,5]],
+  S: [[0,6,6],[6,6,0]],
+  Z: [[7,7,0],[0,7,7]]
+};
+
+function createMatrix(w, h) {
+  return Array.from({length: h}, () => Array(w).fill(0));
+}
+
+let arena = createMatrix(COLS, ROWS);
+let score = 0;
+let dropInterval = 600;
+
+function drawMatrix(matrix, offset) {
+  matrix.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value !== 0) {
+        ctx.fillStyle = 'black';
+        ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
+      }
+    });
+  });
+}
+
+function collide(arena, player) {
+  const m = player.matrix;
+  const o = player.pos;
+  for (let y = 0; y < m.length; y++) {
+    for (let x = 0; x < m[y].length; x++) {
+      if (m[y][x] !== 0 &&
+        (arena[y + o.y] &&
+         arena[y + o.y][x + o.x]) !== 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function merge(arena, player) {
+  player.matrix.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value !== 0) {
+        arena[y + player.pos.y][x + player.pos.x] = value;
+      }
+    });
+  });
+}
+
+function rotate(matrix) {
+  return matrix[0].map((_, i) =>
+    matrix.map(row => row[i]).reverse()
+  );
+}
+
+function playerReset() {
+  const keys = Object.keys(pieces);
+  player.matrix = pieces[keys[Math.floor(Math.random() * keys.length)]];
+  player.pos.y = 0;
+  player.pos.x = (COLS / 2 | 0) -
+    (player.matrix[0].length / 2 | 0);
+
+  if (collide(arena, player)) {
+    arena.forEach(row => row.fill(0));
+    score = 0;
+    dropInterval = 600;
+    updateScore();
+  }
+}
+
+function arenaSweep() {
+  let lines = 0;
+
+  outer: for (let y = arena.length - 1; y > 0; y--) {
+    for (let x = 0; x < arena[y].length; x++) {
+      if (arena[y][x] === 0) continue outer;
+    }
+    arena.splice(y, 1);
+    arena.unshift(Array(COLS).fill(0));
+    y++;
+    lines++;
+  }
+
+  if (lines > 0) {
+    score += lines * 100;
+    dropInterval = Math.max(100, 600 - Math.floor(score / 500) * 50);
+    updateScore();
+    hitEffect();
+  }
+}
+
+function updateScore() {
+  scoreEl.textContent = `점수: ${score}`;
+}
+
+function hitEffect() {
+  // 플래시
+  canvas.style.background = '#ddd';
+  setTimeout(() => canvas.style.background = 'white', 80);
+
+  // 흔들림
+  canvas.style.transform = 'translateX(5px)';
+  setTimeout(() => canvas.style.transform = 'translateX(-5px)', 40);
+  setTimeout(() => canvas.style.transform = 'translateX(0)', 80);
+}
+
+function playerDrop() {
+  player.pos.y++;
+  if (collide(arena, player)) {
+    player.pos.y--;
+    merge(arena, player);
+    arenaSweep();
+    playerReset();
+  }
+  dropCounter = 0;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawMatrix(arena, {x:0, y:0});
+  drawMatrix(player.matrix, player.pos);
+}
+
+let dropCounter = 0;
+let lastTime = 0;
+
+function update(time = 0) {
+  const deltaTime = time - lastTime;
+  lastTime = time;
+  dropCounter += deltaTime;
+  if (dropCounter > dropInterval) {
+    playerDrop();
+  }
+  draw();
+  requestAnimationFrame(update);
+}
+
+const player = {
+  pos: {x:0, y:0},
+  matrix: null
+};
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') player.pos.x--;
+  if (e.key === 'ArrowRight') player.pos.x++;
+  if (e.key === 'ArrowDown') playerDrop();
+  if (e.key === 'ArrowUp') player.matrix = rotate(player.matrix);
+  if (e.key === ' ') {
+    while (!collide(arena, player)) player.pos.y++;
+    player.pos.y--;
+    merge(arena, player);
+    arenaSweep();
+    playerReset();
+  }
+});
+
+playerReset();
+update();
+</script>
+
+</body>
+</html>
